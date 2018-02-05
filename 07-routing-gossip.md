@@ -423,9 +423,49 @@ of two `channel_update`s within a second.
 
 Upon establishing a connection, the two endpoints negotiate whether to perform an initial sync by setting the `initial_routing_sync` flags in the `init` message.
 The endpoint SHOULD set the `initial_routing_sync` flag if it requires a full copy of the other endpoint's routing state.
+
 Upon receiving an `init` message with the `initial_routing_sync` flag set, the node sends `channel_announcement`s, `channel_update`s and `node_announcement`s for all known channels and nodes as if they were just received.
 
 If the `initial_routing_sync` flag is not set, or initial sync was completed, then the node resumes normal operation: see the _Rebroadcasting_ section for details.
+
+### Speeding up initial sync
+Initial sync can be made faster by exchanging announcement filters which can be used to filter out channel announcement that the peer already has.
+Nodes can advertise that they support this option by setting the `use_announcement_filters` flag in their `init` message.
+When a node that support channel filters receives an init message with the `channel_filters` flag set, it will send a `channel_announcement_filters` message.
+When a node that support channel filters receives a `channel_announcement_filters` message, it will use it to filter out channel announcement.
+
+A `channel_announcement_filters` is a series of `channel_announcement_filter` messages.
+1. type: 259 (`channel_announcement_filters`)
+2. data:
+    * [`2`:`count`]
+    * [`count`:`channel_announcement_filter`]
+
+A `channel_announcement_filter` message contains a block height and a binary filter.
+1. `channel_announcement_filter`
+2. data:
+    * [`4`:`height`]
+    * [`32`:`filter`]
+
+Announcements are ordered and filtered by block height. A filter is created from all channel announcements between 2 given block heights, ordered 
+by `short_channel_id`, with the exception of the last `channel_announcement_filter` which is created from all announcements above a given height.
+
+The `channel_announcement_filters` is built using the following process:
+* sort all channel announcements by `short_channel_id`
+* compute a marker height, which is ((`now` -  7 * 144) / 144) * 144. 
+* group all announcements created before `marker` by groups of 144 blocks and compute a `channel_announcement_filter` for each group
+* group all announcements created after `marker` by groups of 1 block and compute a `channel_announcement_filter` for each group
+* create a `channel_announcement_filters` from all `channel_announcement_filter` messages, sorted by height
+
+The `channel_announcement_filters` is built from a list of `channel_announcement` messages using the following process:
+* sort channel announcements by `short_channel_id`
+* concatenate their `short_channel_id`
+* compute the sha256 hash of the result
+
+### Rationale
+
+Nodes which have been offline need to re-synchronize their routing table with their peers. Asking for and receive the entire routing table every
+time they restart or become online again could be a real issue for mobile nodes which are offline most of the time. This basic optional scheme makes it
+easier for them.
 
 ## Rebroadcasting
 
