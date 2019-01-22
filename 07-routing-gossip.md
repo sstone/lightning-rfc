@@ -559,6 +559,12 @@ are unique 8-byte values, no more than 14 bytes can be duplicated
 across the stream: as each duplicate takes at least 2 bits, no valid
 contents could decompress to more then 3669960 bytes.
 
+Query messages can be extended with optional fields that can help reduce the number of messages needed to synchronize routing tables by enabling:
+
+- timestamp-based filtering of `channel_update` messages: don't ask for `channel_update` messages that
+ are older that the ones you already have.
+- checksum-based filtering of `channel_update` messages: don't ask for `channel_update` messages that carry the same information as the ones you already have.
+
 ### The `query_short_channel_ids`/`reply_short_channel_ids_end` Messages
 
 1. type: 261 (`query_short_channel_ids`) (`gossip_queries`)
@@ -566,6 +572,8 @@ contents could decompress to more then 3669960 bytes.
     * [`32`:`chain_hash`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
+    * [`2`:`option_len`]
+    * [`len`:`option_encoded_query_flags`]
 
 1. type: 262 (`reply_short_channel_ids_end`) (`gossip_queries`)
 2. data:
@@ -590,7 +598,8 @@ The sender:
   - MAY send this if it receives a `channel_update` for a
    `short_channel_id` for which it has no `channel_announcement`.
   - SHOULD NOT send this if the channel referred to is not an unspent output.
-
+  - MAY include an optional array of query flags, one flag per `short_channel_id`. The first byte
+    specifies the encoding type, as for `encoded_short_ids`. Each query flag is a single byte. 
 The receiver:
   - if the first byte of `encoded_short_ids` is not a known encoding type:
     - MAY fail the connection
@@ -598,8 +607,9 @@ The receiver:
     - MAY fail the connection.
   - if it has not sent `reply_short_channel_ids_end` to a previously received `query_short_channel_ids` from this sender:
     - MAY fail the connection.
-  - MUST respond to each known `short_channel_id` with a `channel_announcement`
-    and the latest `channel_update` for each end
+  - MUST respond to each known `short_channel_id`:
+    - with a `channel_announcement` and the latest `channel_update` for each end if the received message
+    does not include an optional `option_encoded_query_flags`
 	- SHOULD NOT wait for the next outgoing gossip flush to send these.
   - MUST follow with any `node_announcement`s for each `channel_announcement`
 	- SHOULD avoid sending duplicate `node_announcements` in response to a single `query_short_channel_ids`.
@@ -608,6 +618,15 @@ The receiver:
 	- MUST set `complete` to 0.
   - otherwise:
 	- SHOULD set `complete` to 1.
+
+If the incoming message include `option_encoded_query_flags`, instead of systematically replying with
+a `channel_announcement` and the latest `channel_update` it knows, the receiver:
+  - MUST check that `option_encoded_query_flags` decodes to exactly one flag per `short_channel_id`, and
+  MAY fail the connection if it is not the case
+  - for each `short_channel_id`:
+    - if bit 1 of the corresponding query_flag is set, MUST reply with a `channel_announcement`
+    - if bit 2 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_1` 
+    - if bit 3 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_2`
 
 #### Rationale
 
@@ -627,6 +646,7 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`32`:`chain_hash`]
     * [`4`:`first_blocknum`]
     * [`4`:`number_of_blocks`]
+    * [`1`:`option_extended_query_flag`]
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -636,6 +656,9 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`1`:`complete`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
+    * [`1`:`option_extended_query_flag`]
+    * [`2`:`option_extended_info_len`]
+    * [`len`:`option_extended_info`]
 
 This allows a query for channels within specific blocks.
 
@@ -647,6 +670,7 @@ The sender of `query_channel_range`:
   that it wants the `reply_channel_range` to refer to
   - MUST set `first_blocknum` to the first block it wants to know channels for
   - MUST set `number_of_blocks` to 1 or greater.
+  - MAY append an additional `option_extended_query_flag` field, which specifies the type of extended information it would like to receive. 
 
 The receiver of `query_channel_range`:
   - if it has not sent all `reply_channel_range` to a previously received `query_channel_range` from this sender:
@@ -663,6 +687,22 @@ The receiver of `query_channel_range`:
       - MUST set `complete` to 0.
     - otherwise:
       - SHOULD set `complete` to 1.
+
+If the incoming message includes a `option_extended_query_flag` field that it understands, the receiver MAY append an optional `option_extended_info` field to its reply, prefixed  with a 2-byte length. The first byte specifies the encoding type, as for `encoded_short_ids`.
+
+Currently, the only valid `option_extended_query_flag` is 1. The corresponding `option_extended_info` is an array which contains, for each `short_channel_id`, the following values:
+
+  * [`4`:`timestamp_node_id_1`]
+  * [`4`:`checksum_node_id_1`]
+  * [`4`:`timestamp_node_id_2`]
+  * [`4`:`checksum_node_id_2`]
+
+* `timestamp_node_id_1` is the timestamp of the `channel_update` for `node_id_1`
+* `checksum_node_id_1` is the checksum of the `channel_update` for `node_id_1`
+* `timestamp_node_id_2` is the timestamp of the `channel_update` for `node_id_2`
+* `checksum_node_id_1` is the checksum of the `channel_update` for `node_id_2`
+
+The checksum of a `channel_update` is the Adler32 checksum of this `channel_update` without its `signature` and `timestamp` fields.
 
 #### Rationale
 
