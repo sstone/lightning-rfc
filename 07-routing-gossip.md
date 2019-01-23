@@ -620,7 +620,7 @@ The receiver:
 	- SHOULD set `complete` to 1.
 
 If the incoming message include `option_encoded_query_flags`, instead of systematically replying with
-a `channel_announcement` and the latest `channel_update` it knows, the receiver:
+a `channel_announcement` and the latest `channel_update`s it knows, the receiver:
   - MUST check that `option_encoded_query_flags` decodes to exactly one flag per `short_channel_id`, and
   MAY fail the connection if it is not the case
   - for each `short_channel_id`:
