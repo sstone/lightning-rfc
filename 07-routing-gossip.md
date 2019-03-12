@@ -624,9 +624,9 @@ a `channel_announcement` and the latest `channel_update`s it knows, the receiver
   - MUST check that `option_encoded_query_flags` decodes to exactly one flag per `short_channel_id`, and
   MAY fail the connection if it is not the case
   - for each `short_channel_id`:
-    - if bit 1 of the corresponding query_flag is set, MUST reply with a `channel_announcement`
-    - if bit 2 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_1` 
-    - if bit 3 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_2`
+    - if bit 0 of the corresponding query_flag is set, MUST reply with a `channel_announcement`
+    - if bit 1 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_1` 
+    - if bit 2 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_2`
 
 #### Rationale
 
