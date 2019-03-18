@@ -572,8 +572,8 @@ Query messages can be extended with optional fields that can help reduce the num
     * [`32`:`chain_hash`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
-    * [`2`:`option_len`]
-    * [`len`:`option_encoded_query_flags`]
+    * [`2`:`option_len`] (`option_query_flags`)
+    * [`option_len`:`query_flags`] (`option_query_flags`)
 
 1. type: 262 (`reply_short_channel_ids_end`) (`gossip_queries`)
 2. data:
@@ -609,7 +609,7 @@ The receiver:
     - MAY fail the connection.
   - MUST respond to each known `short_channel_id`:
     - with a `channel_announcement` and the latest `channel_update` for each end if the received message
-    does not include an optional `option_encoded_query_flags`
+    does not include an optional `query_flags`
 	- SHOULD NOT wait for the next outgoing gossip flush to send these.
   - MUST follow with any `node_announcement`s for each `channel_announcement`
 	- SHOULD avoid sending duplicate `node_announcements` in response to a single `query_short_channel_ids`.
@@ -621,7 +621,7 @@ The receiver:
 
 If the incoming message include `option_encoded_query_flags`, instead of systematically replying with
 a `channel_announcement` and the latest `channel_update`s it knows, the receiver:
-  - MUST check that `option_encoded_query_flags` decodes to exactly one flag per `short_channel_id`, and
+  - MUST check that `query_flags` decodes to exactly one flag per `short_channel_id`, and
   MAY fail the connection if it is not the case
   - for each `short_channel_id`:
     - if bit 0 of the corresponding query_flag is set, MUST reply with a `channel_announcement`
@@ -646,7 +646,7 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`32`:`chain_hash`]
     * [`4`:`first_blocknum`]
     * [`4`:`number_of_blocks`]
-    * [`1`:`option_extended_query_flag`]
+    * [`1`:`query_flag`] (`option_extended_query_flags`)
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -656,9 +656,9 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`1`:`complete`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
-    * [`1`:`option_extended_query_flag`]
-    * [`2`:`option_extended_info_len`]
-    * [`len`:`option_extended_info`]
+    * [`1`:`query_flag`] (`option_extended_query_flags`)
+    * [`2`:`info_len`] (`option_extended_query_flags`)
+    * [`info_len`:`extended_info`] (`option_extended_query_flags`)
 
 This allows a query for channels within specific blocks.
 
