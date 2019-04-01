@@ -573,7 +573,7 @@ Query messages can be extended with optional fields that can help reduce the num
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
     * [`2`:`option_len`] (`option_query_flags`)
-    * [`option_len`:`query_flags`] (`option_query_flags`)
+    * [`option_len`:`encoded_query_flags`] (`option_query_flags`)
 
 1. type: 262 (`reply_short_channel_ids_end`) (`gossip_queries`)
 2. data:
@@ -598,8 +598,11 @@ The sender:
   - MAY send this if it receives a `channel_update` for a
    `short_channel_id` for which it has no `channel_announcement`.
   - SHOULD NOT send this if the channel referred to is not an unspent output.
-  - MAY include an optional array of query flags, one flag per `short_channel_id`. The first byte
-    specifies the encoding type, as for `encoded_short_ids`. Each query flag is a single byte. 
+  - MAY include an optional array of `encoded_query_flags`.  If so:
+    - The first byte MUST specify the encoding type, as for `encoded_short_ids`.
+    - Each query flag is a single byte.
+    - MUST encode one query flag per `short_channel_id`.
+
 The receiver:
   - if the first byte of `encoded_short_ids` is not a known encoding type:
     - MAY fail the connection
@@ -607,9 +610,24 @@ The receiver:
     - MAY fail the connection.
   - if it has not sent `reply_short_channel_ids_end` to a previously received `query_short_channel_ids` from this sender:
     - MAY fail the connection.
+  - if the incoming message includes `encoded_query_flags`:
+    - if the first byte of `encoded_query_flags` is not a known encoding type:
+      - MAY fail the connection
+    - if `encoded_query_flags` does not decode to exactly one flag per `short_channel_id`:
+      - MAY fail the connection.
   - MUST respond to each known `short_channel_id`:
-    - with a `channel_announcement` and the latest `channel_update` for each end if the received message
-    does not include an optional `query_flags`
+    - if the incoming message does not include `encoded_query_flags`:
+      - with a `channel_announcement` and the latest `channel_update` for each end if the received message
+    - otherwise:
+      - We define `query_flag` for the Nth `short_channel_id` in
+        `encoded_short_ids` to be the Nth byte of the decoded
+        `encoded_query_flags`.
+      - if bit 0 of `query_flag` is set:
+        - MUST reply with a `channel_announcement`
+      - if bit 1 of `query_flag` is set and it has received a `channel_update` from `node_id_1`:
+        - MUST reply with the latest `channel_update` for `node_id_1`
+      - if bit 2 of `query_flag` is set and it has received a `channel_update` from `node_id_2`:
+        - MUST reply with the latest `channel_update` for `node_id_2`
 	- SHOULD NOT wait for the next outgoing gossip flush to send these.
   - MUST follow with any `node_announcement`s for each `channel_announcement`
 	- SHOULD avoid sending duplicate `node_announcements` in response to a single `query_short_channel_ids`.
@@ -619,14 +637,6 @@ The receiver:
   - otherwise:
 	- SHOULD set `complete` to 1.
 
-If the incoming message include `option_encoded_query_flags`, instead of systematically replying with
-a `channel_announcement` and the latest `channel_update`s it knows, the receiver:
-  - MUST check that `query_flags` decodes to exactly one flag per `short_channel_id`, and
-  MAY fail the connection if it is not the case
-  - for each `short_channel_id`:
-    - if bit 0 of the corresponding query_flag is set, MUST reply with a `channel_announcement`
-    - if bit 1 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_1` 
-    - if bit 2 of the corresponding query_flag is set, MUST reply with the `channel_update` for `node_id_2`
 
 #### Rationale
 
