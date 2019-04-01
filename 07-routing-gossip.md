@@ -617,7 +617,7 @@ The receiver:
       - MAY fail the connection.
   - MUST respond to each known `short_channel_id`:
     - if the incoming message does not include `encoded_query_flags`:
-      - with a `channel_announcement` and the latest `channel_update` for each end if the received message
+      - with a `channel_announcement` and the latest `channel_update` for each end
     - otherwise:
       - We define `query_flag` for the Nth `short_channel_id` in
         `encoded_short_ids` to be the Nth byte of the decoded
