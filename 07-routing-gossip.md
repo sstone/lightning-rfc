@@ -562,7 +562,7 @@ contents could decompress to more then 3669960 bytes.
 Query messages can be extended with optional fields that can help reduce the number of messages needed to synchronize routing tables by enabling:
 
 - timestamp-based filtering of `channel_update` messages: don't ask for `channel_update` messages that
- are older that the ones you already have.
+ are older than the ones you already have.
 - checksum-based filtering of `channel_update` messages: don't ask for `channel_update` messages that carry the same information as the ones you already have.
 
 ### The `query_short_channel_ids`/`reply_short_channel_ids_end` Messages
