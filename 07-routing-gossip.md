@@ -572,8 +572,21 @@ Query messages can be extended with optional fields that can help reduce the num
     * [`32`:`chain_hash`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
-    * [`2`:`option_len`] (`option_query_flags`)
-    * [`option_len`:`encoded_query_flags`] (`option_query_flags`)
+    * [`query_short_channel_ids_tlv`]
+      * type: 1 (`query_flags`)
+      * data:
+        * [`1`:`encoding_type`]
+        * [`len-1`:`encoded_query_flags`]
+
+</a>
+
+`encoded_query_flags` is an array of bitfields, one for each channel id. Bits have the following meaning:
+
+| Bit Position  | Meaning                                  |
+| ------------- | ---------------------------------------- |
+| 0             | Sender wants `channel_announcement`      |
+| 1             | Sender wants `channel_update` for node 1 |
+| 2             | Sender wants `channel_update` for node 2 |
 
 1. type: 262 (`reply_short_channel_ids_end`) (`gossip_queries`)
 2. data:
@@ -598,8 +611,8 @@ The sender:
   - MAY send this if it receives a `channel_update` for a
    `short_channel_id` for which it has no `channel_announcement`.
   - SHOULD NOT send this if the channel referred to is not an unspent output.
-  - MAY include an optional array of `encoded_query_flags`.  If so:
-    - The first byte MUST specify the encoding type, as for `encoded_short_ids`.
+  - MAY include an optional `query_short_channel_ids_tlv`. If so:
+    - MUST set `encoding_type`, as for `encoded_short_ids`.
     - Each query flag is a single byte.
     - MUST encode one query flag per `short_channel_id`.
 
@@ -610,8 +623,8 @@ The receiver:
     - MAY fail the connection.
   - if it has not sent `reply_short_channel_ids_end` to a previously received `query_short_channel_ids` from this sender:
     - MAY fail the connection.
-  - if the incoming message includes `encoded_query_flags`:
-    - if the first byte of `encoded_query_flags` is not a known encoding type:
+  - if the incoming message includes `query_short_channel_ids_tlv`:
+    - if `encoding_type` is not a known encoding type:
       - MAY fail the connection
     - if `encoded_query_flags` does not decode to exactly one flag per `short_channel_id`:
       - MAY fail the connection.
@@ -656,7 +669,18 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`32`:`chain_hash`]
     * [`4`:`first_blocknum`]
     * [`4`:`number_of_blocks`]
-    * [`1`:`query_flag`] (`option_extended_query_flags`)
+    * [`query_channel_range_tlv`]
+      * type: 1 (`query_option`)
+      * data:
+        * [`1`:`query_option_flags`]
+
+`query_option_flags` is a bit field. Bits have the following meaning:
+
+| Bit Position  | Meaning                 |
+| ------------- | ----------------------- |
+| 0             | Sender wants timestamps |
+| 1             | Sender wants checksums  |
+
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -666,9 +690,34 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`1`:`complete`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
-    * [`1`:`query_flag`] (`option_extended_query_flags`)
-    * [`2`:`info_len`] (`option_extended_query_flags`)
-    * [`info_len`:`extended_info`] (`option_extended_query_flags`)
+    * [`query_channel_range_tlv`]
+      * type: 1 (`timestamps_tlv`)
+      * data:
+        * [`1`:`encoding_type`]
+        * [`len-1`:`encoded_timestamps`]
+      * type: 3 (`checksums_tlv`)
+      * data:
+        * [`len`:`encoded_checksums`]
+
+For a single `channel_update`, timestamps are encoded as:
+
+* [`4`:`timestamp_node_id_1`]
+* [`4`:`timestamp_node_id_2`]
+
+Where:
+* `timestamp_node_id_1` is the timestamp of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
+* `timestamp_node_id_2` is the timestamp of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
+
+For a single `channel_update`, checksums are encoded as:
+
+* [`4`:`checksum_node_id_1`]
+* [`4`:`checksum_node_id_2`]
+
+Where:
+* `checksum_node_id_1` is the checksum of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
+* `checksum_node_id_2` is the checksum of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
+
+The checksum of a `channel_update` is the Adler32 checksum of this `channel_update` without its `signature` and `timestamp` fields.
 
 This allows a query for channels within specific blocks.
 
@@ -680,7 +729,7 @@ The sender of `query_channel_range`:
   that it wants the `reply_channel_range` to refer to
   - MUST set `first_blocknum` to the first block it wants to know channels for
   - MUST set `number_of_blocks` to 1 or greater.
-  - MAY append an additional `option_extended_query_flag` field, which specifies the type of extended information it would like to receive. 
+  - MAY append an additional `query_channel_range_tlv`, which specifies the type of extended information it would like to receive.  
 
 The receiver of `query_channel_range`:
   - if it has not sent all `reply_channel_range` to a previously received `query_channel_range` from this sender:
@@ -698,27 +747,18 @@ The receiver of `query_channel_range`:
     - otherwise:
       - SHOULD set `complete` to 1.
 
-If the incoming message includes a `option_extended_query_flag` field that it understands, the receiver MAY append an optional `option_extended_info` field to its reply, prefixed  with a 2-byte length. The first byte specifies the encoding type, as for `encoded_short_ids`.
+If the incoming message includes a `query_channel_range_tlv` that it understands, the receiver MAY append additional information to its reply.
+- if bit 0 in `query_option_flags` is set, the receive MAY append a `timestamps_tlv` that contains `channel_update` timestamps for all channel ids in `encoded_short_ids`
+- if bit 1 in `query_option_flags` is set, the receive MAY append a `checksums_tlv` that contains `channel_update` checksums for all channel ids in `encoded_short_ids`
 
-Currently, the only valid `option_extended_query_flag` is 1. The corresponding `option_extended_info` is an array which contains, for each `short_channel_id`, the following values:
-
-  * [`4`:`timestamp_node_id_1`]
-  * [`4`:`checksum_node_id_1`]
-  * [`4`:`timestamp_node_id_2`]
-  * [`4`:`checksum_node_id_2`]
-
-* `timestamp_node_id_1` is the timestamp of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
-* `checksum_node_id_1` is the checksum of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
-* `timestamp_node_id_2` is the timestamp of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
-* `checksum_node_id_1` is the checksum of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
-
-The checksum of a `channel_update` is the Adler32 checksum of this `channel_update` without its `signature` and `timestamp` fields.
 
 #### Rationale
 
 A single response might be too large for a single packet, and also a peer can
 store canned results for (say) 1000-block ranges, and simply offer each reply
 which overlaps the ranges of the request.
+
+The addition of timestamp and checksum fields allow a peer to omit querying for redundant updates.
 
 ### The `gossip_timestamp_filter` Message
 
