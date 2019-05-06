@@ -576,11 +576,11 @@ Query messages can be extended with optional fields that can help reduce the num
       * type: 1 (`query_flags`)
       * data:
         * [`1`:`encoding_type`]
-        * [`len-1`:`encoded_query_flags`]
+        * [`query_short_channel_ids_tlv_len-1`:`encoded_query_flags`]
 
 </a>
 
-`encoded_query_flags` is an array of bitfields, one for each channel id. Bits have the following meaning:
+`encoded_query_flags` is an array of bitfields, one byte per bitfield, one bitfield for each `short_channel_id`. Bits have the following meaning (bits 3 to 7 are not currently used):
 
 | Bit Position  | Meaning                                  |
 | ------------- | ---------------------------------------- |
@@ -674,13 +674,14 @@ timeouts.  It also causes a natural ratelimiting of queries.
       * data:
         * [`1`:`query_option_flags`]
 
-`query_option_flags` is a bit field. Bits have the following meaning:
+`query_option_flags` is a bitfield encoded on a single byte (its TLV length is always 1). Bits have the following meaning:
 
 | Bit Position  | Meaning                 |
 | ------------- | ----------------------- |
 | 0             | Sender wants timestamps |
 | 1             | Sender wants checksums  |
 
+Though it is possible, it would not be very useful to ask for checksums without asking for timestamps too: the receiving node may have an older `channel_update` with a different checksum, asking for it would be useless. And if a `channel_update` checksum is actually 0 (which is quite unlikely) it will not be queried.
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -690,14 +691,14 @@ timeouts.  It also causes a natural ratelimiting of queries.
     * [`1`:`complete`]
     * [`2`:`len`]
     * [`len`:`encoded_short_ids`]
-    * [`query_channel_range_tlv`]
+    * [`reply_channel_range_tlv`]
       * type: 1 (`timestamps_tlv`)
       * data:
         * [`1`:`encoding_type`]
-        * [`len-1`:`encoded_timestamps`]
+        * [`timestamps_tlv_len-1`:`encoded_timestamps`]
       * type: 3 (`checksums_tlv`)
       * data:
-        * [`len`:`encoded_checksums`]
+        * [`checksums_tlv_len`:`encoded_checksums`]
 
 For a single `channel_update`, timestamps are encoded as:
 
@@ -748,8 +749,8 @@ The receiver of `query_channel_range`:
       - SHOULD set `complete` to 1.
 
 If the incoming message includes a `query_channel_range_tlv` that it understands, the receiver MAY append additional information to its reply.
-- if bit 0 in `query_option_flags` is set, the receive MAY append a `timestamps_tlv` that contains `channel_update` timestamps for all channel ids in `encoded_short_ids`
-- if bit 1 in `query_option_flags` is set, the receive MAY append a `checksums_tlv` that contains `channel_update` checksums for all channel ids in `encoded_short_ids`
+- if bit 0 in `query_option_flags` is set, the receive MAY append a `timestamps_tlv` that contains `channel_update` timestamps for all `short_chanel_id`s in `encoded_short_ids`
+- if bit 1 in `query_option_flags` is set, the receive MAY append a `checksums_tlv` that contains `channel_update` checksums for all `short_chanel_id`s in `encoded_short_ids`
 
 
 #### Rationale
