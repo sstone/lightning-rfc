@@ -11,3 +11,4 @@ python:
 script:
   - (set -e; for i in 0?-*.md; do echo "Extracting $i"; python3 tools/extract-formats.py --message-types --message-fields $i; done)
   - tools/spellcheck.sh --check [0-9][0-9]-*.md
+  - sort -u .aspell.en.pws | diff - .aspell.en.pws
