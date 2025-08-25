@@ -376,6 +376,8 @@ reproduced:
      `musig2.NonceGen` algorithm with the required values, and the `rand'`
      value set to `k_i`.
 
+  4. Use the id of the commitment's funding transaction as extra input, as
+     described in `musig2.NonceGen`.
 
 #### Nonce Handling
 
@@ -582,6 +584,12 @@ TLV type that houses the `musig2` public nonces.
 
 We add `option_simple_taproot` to the set of defined channel types.
 
+Since the id of the funding transaction is not known yet when nodes exchange
+`open_channel` and `accept_channel`, a dummy funding txid of 32 zero-byte
+must be used instead as extra input to the nonce generation algorithm to 
+generate the verification nonce for the first commitment. This only applies to
+the v1 channel establishment protocol.
+
 #### `open_channel` Extensions
 
 1. `tlv_stream`: `open_channel_tlvs`
@@ -783,10 +791,11 @@ channels to:
 2. types:
     1. type: 4 (`commit_nonces`)
     2. data:
-      * [`2*66*byte`:`commit_nonce` || `next_commit_nonce`]
+      * [`66*byte`:`commit_nonce`]
+      * [`66*byte`:`next_commit_nonce`]
     1. type: 6 (`funding_nonce`)
     2. data:
-    * [`66*byte`:`funding_nonce`]
+      * [`66*byte`:`funding_nonce`]
 
 ##### Requirements
 
