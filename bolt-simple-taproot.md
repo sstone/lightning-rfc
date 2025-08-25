@@ -563,8 +563,7 @@ Note that these TLV types exist across different messages, but their type IDs ar
 #### local_nonces
 - type: 22
 - data:
-   * [`u16`: `num_entries`]
-   * [`num_entries * nonce_entry`: `entries`]
+   * [`... * nonce_entry`: `entries`]
 
 where `nonce_entry` is:
    * [`32*byte`: `txid`]
@@ -782,19 +781,22 @@ channels to:
 
 1. `tlv_stream`: `tx_complete_tlvs`
 2. types:
-    1. type: 4 (`session_nonces`)
+    1. type: 4 (`commit_nonces`)
     2. data:
-      * [`66 or 99 * byte`:`commit_nonce` || `next_commit_nonce` || (optional) `funding_nonce`]
+      * [`2*66*byte`:`commit_nonce` || `next_commit_nonce`]
+    1. type: 6 (`funding_nonce`)
+    2. data:
+    * [`66*byte`:`funding_nonce`]
 
 ##### Requirements
 
 The sending node:
 
-- MUST include a `commit_nonce` for the commitment transaction that is being 
-  built, which can be the first commitment transaction for channel opening,
-  or a splice transaction.
-- MUST include a `next_commit_nonce` that will be used to sign the next 
-  commitment transaction, once the interactive transaction session completes. 
+- MUST include a `commit_nonces` field that contains 
+  - a `commit_nonce` for the commitment transaction that is being built i.e. for
+    the current commitment number 
+  - a `next_commit_nonce` that will be used to sign the next commitment 
+    transaction, once the interactive transaction session completes. 
 - IF the session is spending a previous funding transaction, MUST include
   a `funding_nonce` that will be used to sign it. 
 
@@ -1233,7 +1235,7 @@ A new TLV stream is added to the `revoke_and_ack` message:
 2. types:
    1. type: 22 (`next_local_nonces`)
    2. data:
-       * [`local_nonces`: `nonces_map`]
+       * [`local_nonces`: `local_nonces`]
 
 Similar to sending the `next_per_commitment_point`, we also send the _next_
 `musig2` nonces, after we revoke a state. Sending these nonces allows the 
@@ -1264,10 +1266,10 @@ The recipient:
 We add 2 new TLV fields to the `channel_reestablish` message:
 
 1. `tlv_stream`: `channel_reestablish_tlvs`
-2. types:      * [`66*byte`: `public_nonce`]
+2. types:
    1. type: 22 (`next_local_nonces`)
    2. data:
-      * [`next_local_nonces`: `nonces_map`]
+      * [`next_local_nonces`: `next_local_nonces`]
    1. type: 24 (`current_commit_nonce`)
    2. data:
        * [`66*byte`:`public_nonce`]
