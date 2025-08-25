@@ -802,10 +802,10 @@ The sending node:
 
 The receiving node MUST fail the negotiation by sending `tx_abort` if:
 
-- the message doesn't include a `session_nonces` value.
+- the message doesn't include a `commit_nonces` value.
 
-- the interactive session is spending a previous funding transaction and
-  `session_nonces` does not include a `funding_nonce`.
+- the interactive session is spending a previous funding transaction that
+  uses taproot and `tx_complete` does not include a `funding_nonce`.
 
 `commit_nonce` and `next_commit_nonce` are verification nonces and must
 be generated using the same process as other verification nonces.
@@ -1235,7 +1235,7 @@ A new TLV stream is added to the `revoke_and_ack` message:
 2. types:
    1. type: 22 (`next_local_nonces`)
    2. data:
-       * [`local_nonces`: `local_nonces`]
+       * [`local_nonces`: `next_commit_nonces`]
 
 Similar to sending the `next_per_commitment_point`, we also send the _next_
 `musig2` nonces, after we revoke a state. Sending these nonces allows the 
@@ -1269,7 +1269,7 @@ We add 2 new TLV fields to the `channel_reestablish` message:
 2. types:
    1. type: 22 (`next_local_nonces`)
    2. data:
-      * [`next_local_nonces`: `next_local_nonces`]
+      * [`local_nonces`: `next_commit_nonces`]
    1. type: 24 (`current_commit_nonce`)
    2. data:
        * [`66*byte`:`public_nonce`]
@@ -1279,7 +1279,7 @@ value in this message, we ensure that the remote party has our public nonces,
 which are required to generate new commitment signatures.
 
 `current_commit_nonce` is used to re-send signatures for the * current * 
-commitment transaction.
+commitment transaction if a disconnection happened while signing an `interactive-tx` session.
 
 ##### Requirements
 
@@ -1290,6 +1290,7 @@ The sender:
   - if it has sent commitment_signed for an interactive transaction 
     construction but it has not received tx_signatures:
       - MUST include `current_commit_nonce` for the commitment transaction that is being built.
+      - MUST include a `next_commit_nonce` for the funding transaction that is being built.
 
 The recipient:
 
